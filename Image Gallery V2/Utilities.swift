@@ -77,6 +77,7 @@ class ImageFetcherWithCache {
         let request = URLRequest(url: url.imageURL)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             if let data = cache.cachedResponse(for: request)?.data, let image = UIImage(data: data) {
+                print("Cache hit!")
                 self?.handler(url,image)
             } else {
                 URLSession.shared.dataTask(with: request, completionHandler: { (data, response, error) in

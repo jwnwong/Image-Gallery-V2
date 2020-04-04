@@ -8,7 +8,7 @@
 
 import UIKit
 
-class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UICollectionViewDropDelegate {
+class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UICollectionViewDragDelegate, UICollectionViewDropDelegate {
     
     // MARK: Document Variables & Methods
     var document: Document?
@@ -21,6 +21,8 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
                 print("Document \(String(describing: self.document?.fileURL.lastPathComponent)) Open status \(success)")
                 if success, let galleryRead = self.document?.gallery {
                     self.gallery = galleryRead
+                } else {
+                    self.gallery = Gallery(galleryName: "Initial Default - Unable to Open", imageURLs: [URL](), cellsize: 200.0)
                 }
             }
         } else {
@@ -33,9 +35,10 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
     // MARK: Data Model
     var gallery: Gallery? {
         didSet   {
-            if let myName = document?.fileURL.lastPathComponent, myName.hasSuffix(".json") {
-                gallery!.galleryName = String(myName[myName.startIndex ..< myName.index(myName.endIndex, offsetBy: -5)])
-                title = gallery!.galleryName
+            
+            if gallery != nil, let myName = document?.fileURL.lastPathComponent, myName.hasSuffix(".json") {
+                gallery?.galleryName = String(myName[myName.startIndex ..< myName.index(myName.endIndex, offsetBy: -5)])
+                title = gallery?.galleryName
             }
             else {
                 title = "Unknown Gallery"
@@ -69,6 +72,7 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
             imagesCollectionView.delegate = self
             imagesCollectionView.dataSource = self
             imagesCollectionView.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(adjustCellSize)))
+            imagesCollectionView.dragDelegate = self
             imagesCollectionView.dropDelegate = self
         }
     }
@@ -105,30 +109,64 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
         return CGSize(width: cellSize, height:cellSize)
     }
 
+    // Implement the drap
+    func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+        session.localContext = imagesCollectionView
+        return dragItems(at: indexPath)
+    }
+    func dragItems(at indexPath: IndexPath) -> [UIDragItem] {
+        if let itemURL = (imagesCollectionView.cellForItem(at: indexPath) as? ImageCell)?.imageURL {
+            let dragItem = UIDragItem(itemProvider: NSItemProvider(object: itemURL as NSItemProviderWriting))
+            dragItem.localObject = itemURL
+            return [dragItem]
+        } else {
+            return []
+        }
+        
+    }
     
     // Implement the drop support
     func collectionView(_ collectionView: UICollectionView, canHandle session: UIDropSession) -> Bool {
-        return session.canLoadObjects(ofClass: NSURL.self) && session.canLoadObjects(ofClass: UIImage.self)
+        return session.localDragSession?.localContext != nil || ( session.canLoadObjects(ofClass: NSURL.self) && session.canLoadObjects(ofClass: UIImage.self) )
+        
     }
     func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UICollectionViewDropProposal {
-        return UICollectionViewDropProposal(operation: .copy,intent: .insertAtDestinationIndexPath)
+        if session.localDragSession?.localContext != nil {
+            return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
+        } else {
+            return UICollectionViewDropProposal(operation: .copy,intent: .insertAtDestinationIndexPath)
+        }
     }
     func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
         let destinationIndexPath = coordinator.destinationIndexPath ?? IndexPath(item: 0, section: 0)
         
         for item in coordinator.items {
-            let placeholderContext = coordinator.drop(item.dragItem,
-                to: UICollectionViewDropPlaceholder(insertionIndexPath: destinationIndexPath, reuseIdentifier: "DropPlaceholderCell"))
-            item.dragItem.itemProvider.loadObject(ofClass: NSURL.self) { (provider, error) in
-                DispatchQueue.main.async {
-                    if let imageURL = provider as? NSURL {
-                        placeholderContext.commitInsertion(dataSourceUpdates: { insertionIndexPath in
-                            self.gallery?.imageURLs.insert(imageURL as URL, at: insertionIndexPath.item)
-                        })
+            if let sourceIndexPath = item.sourceIndexPath {   // it is move operation
+                if let url = item.dragItem.localObject as? URL {
+                    // MARK: Stop here
+                    imagesCollectionView.performBatchUpdates({
+                        gallery?.imageURLs.remove(at: sourceIndexPath.item)
+                        gallery?.imageURLs.insert(url,at: destinationIndexPath.item)
+                        collectionView.deleteItems(at: [sourceIndexPath])
+                        collectionView.insertItems(at: [destinationIndexPath])
+                    })
+                    coordinator.drop(item.dragItem, toItemAt: destinationIndexPath)
+                }
+            } else {   // it is copy operation
+                let placeholderContext = coordinator.drop(item.dragItem,
+                                                          to: UICollectionViewDropPlaceholder(insertionIndexPath: destinationIndexPath, reuseIdentifier: "DropPlaceholderCell"))
+                item.dragItem.itemProvider.loadObject(ofClass: NSURL.self) { (provider, error) in
+                    DispatchQueue.main.async {
+                        if let imageURL = provider as? NSURL {
+                            placeholderContext.commitInsertion(dataSourceUpdates: { insertionIndexPath in
+                                self.gallery?.imageURLs.insert(imageURL as URL, at: insertionIndexPath.item)
+                                print("datasourceupdates: imageURLs count is: \(String(describing: self.gallery?.imageURLs.count))")
+                            })
+                        }
                     }
                 }
             }
-        }
+        }   //  for loop -> next item
     }
     
     // MARK: - Navigation
