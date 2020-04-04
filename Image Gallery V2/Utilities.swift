@@ -68,6 +68,42 @@ class ImageFetcher
     }
 }
 
+
+class ImageFetcherWithCache {
+     
+    func fetch(fromURL url: URL) {
+        
+        let cache =  URLCache.shared
+        let request = URLRequest(url: url.imageURL)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            if let data = cache.cachedResponse(for: request)?.data, let image = UIImage(data: data) {
+                self?.handler(url,image)
+            } else {
+                URLSession.shared.dataTask(with: request, completionHandler: { (data, response, error) in
+                    if let data = data, let response = response, ((response as? HTTPURLResponse)?.statusCode ?? 500) < 300, let image = UIImage(data: data) {
+                        let cachedData = CachedURLResponse(response: response, data: data)
+                        cache.storeCachedResponse(cachedData, for: request)
+                        self?.handler(url,image)
+                    } else {
+                        self?.handler(url, nil)
+                    }
+                }).resume()
+            }
+        }
+    }
+    init(handler: @escaping (URL, UIImage?) -> Void) {
+        self.handler = handler
+    }
+    
+    init(fetch url: URL, handler: @escaping (URL, UIImage?) -> Void) {
+        self.handler = handler
+        fetch(fromURL:url)
+    }
+    private var handler: (URL, UIImage?) -> Void
+    
+}
+
+
 extension URL {
     var imageURL: URL {
         if let url = UIImage.urlToStoreLocallyAsJPEG(named: self.path) {
@@ -132,6 +168,9 @@ extension UIImage
         return nil
     }
 }
+
+
+
 
 extension String {
     func madeUnique(withRespectTo otherStrings: [String]) -> String {

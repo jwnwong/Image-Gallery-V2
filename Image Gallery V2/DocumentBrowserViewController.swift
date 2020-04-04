@@ -79,14 +79,14 @@ class DocumentBrowserViewController: UIDocumentBrowserViewController, UIDocument
     // MARK: Document Presentation
     
     func presentDocument(at documentURL: URL) {
-    print("Preparing to present.....")
+    
         let storyBoard = UIStoryboard(name: "Main", bundle: nil)
         let documentVC = storyBoard.instantiateViewController(withIdentifier: "DocumentViewController")
         if let imageViewController = documentVC.contents as? ImagesViewController {
             imageViewController.document = Document(fileURL: documentURL)
         }
         present(documentVC, animated: true)
-    print("Presented!")
+  
     }
 }
 

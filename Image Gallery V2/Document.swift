@@ -14,7 +14,6 @@ class Document: UIDocument {
     
     override func contents(forType typeName: String) throws -> Any {
         // Encode your document with an instance of NSData or NSFileWrapper
-        print("typeName is \(typeName)")
         return gallery?.json ??  Data()
          
     }

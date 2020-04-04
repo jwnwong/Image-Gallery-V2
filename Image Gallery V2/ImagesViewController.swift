@@ -18,15 +18,13 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
         // Load the document for Image Gallery
         if document != nil {
             document?.open { success in
-                print("Document Open status \(success)")
+                print("Document \(String(describing: self.document?.fileURL.lastPathComponent)) Open status \(success)")
                 if success, let galleryRead = self.document?.gallery {
                     self.gallery = galleryRead
-                } else {
-                    self.gallery = Gallery(galleryName: "Initial Default - Unable to Open", imageURLs: [URL](), cellsize: 200.0)
                 }
             }
         } else {
-            self.gallery = Gallery(galleryName: "Initial Default", imageURLs: [URL](), cellsize: 200.0)
+            close()    // document is not set, this view should be dismissed
         }
         
     }
@@ -35,7 +33,13 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
     // MARK: Data Model
     var gallery: Gallery? {
         didSet   {
-            title = gallery?.galleryName
+            if let myName = document?.fileURL.lastPathComponent, myName.hasSuffix(".json") {
+                gallery!.galleryName = String(myName[myName.startIndex ..< myName.index(myName.endIndex, offsetBy: -5)])
+                title = gallery!.galleryName
+            }
+            else {
+                title = "Unknown Gallery"
+            }
             imagesCollectionView.reloadData()
         }
     }
@@ -52,7 +56,7 @@ class ImagesViewController: UIViewController, UICollectionViewDelegate, UICollec
         }
     }
     
-    @IBAction func close(_ sender: Any) {
+    @IBAction func close(_ sender: Any? = nil) {
         save()
         dismiss(animated: true) {
             self.document?.close()

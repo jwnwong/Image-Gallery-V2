@@ -27,11 +27,27 @@ class ImageDetailsViewController: UIViewController, UIScrollViewDelegate {
         return imageView
     }
     
+    private var fetcher: ImageFetcherWithCache?
+    
     private func fetchImage() {
-        
+     
         if let url = imageURL {
             activityIndicator.startAnimating()
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+    
+            fetcher = ImageFetcherWithCache(fetch:url) { [weak self] url, image in
+                DispatchQueue.main.async {
+                    self?.activityIndicator.stopAnimating()
+                    if let image = image {
+                        self?.imageView.image = image
+                    } else {
+                        let brokenPic = UIImage(named: "work-in-progress", in: Bundle(for: self!.classForCoder), compatibleWith: self?.traitCollection)
+                        self?.imageView.image = brokenPic
+                    }
+                }
+            }
+            
+            
+       /*     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 
                 let urlContents = try? Data(contentsOf: url.imageURL)
                 
@@ -46,7 +62,9 @@ class ImageDetailsViewController: UIViewController, UIScrollViewDelegate {
                         }
                     }
                 }
-            }
+            } */
+    
+        
         }
     }
 
